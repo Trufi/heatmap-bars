@@ -34,6 +34,8 @@ export function pointsToGrid(points: number[][], options: GridOptions) {
     for (let i = 0; i < width * height; i++) {
         if (count[i] !== 0) {
             array[i] /= count[i];
+        } else {
+            array[i] = NaN;
         }
     }
 

@@ -9,18 +9,20 @@
         "dev": "webpack-dev-server",
         "lint": "tslint 'src/**/*.ts'",
         "prettier": "prettier --check \"./**/*.{ts,tsx,js,json,html,css}\"",
-        "test": "npm run lint && npm run prettier && npm run build"
+        "test": "npm run lint && npm run prettier && npm run build",
+        "predeploy": "npm run build && mkdir -p build && mv index.html assets dist build",
+        "deploy": "gh-pages -d build"
     },
     "dependencies": {
+        "@2gis/gl-matrix": "^2.4.5",
         "2gl": "^0.8.0",
-        "@types/dat.gui": "^0.7.5",
         "dat.gui": "^0.7.6",
         "tslib": "^1.10.0"
     },
     "devDependencies": {
-        "@2gis/gl-matrix": "^2.4.5",
-        "delaunator": "^4.0.1",
+        "@types/dat.gui": "^0.7.5",
         "fork-ts-checker-webpack-plugin": "^4.0.2",
+        "gh-pages": "^2.2.0",
         "prettier": "^1.19.1",
         "ts-loader": "^6.2.1",
         "tslint": "^6.0.0",

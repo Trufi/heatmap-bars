@@ -6,8 +6,8 @@ import Vao from '2gl/Vao';
 
 import * as mat4 from '@2gis/gl-matrix/mat4';
 import * as vec2 from '@2gis/gl-matrix/vec2';
-import { Grid } from './points';
-import { degToRad } from './utils';
+import { Grid, pointsToGrid } from './points';
+import { degToRad, projectGeoToMap } from './utils';
 
 const tempMatrix = new Float32Array(mat4.create());
 const compileShader = WebGLRenderingContext.prototype.compileShader;
@@ -110,27 +110,33 @@ export interface HeatOptions {
     light: number;
     lightAngle: number;
     lightInfluence: number;
+    gridStepSize: number;
+    gridMinQuantile: number;
+    gridMaxQuantile: number;
 }
 
 export class Heat {
     private options: HeatOptions = {
-        size: 1,
+        size: 1.4,
         height: 500000,
         faces: 4,
-        opacity: 1,
+        opacity: 0.9,
         hueOfMinValue: 240,
         hueOfMaxValue: 0,
         saturation: 0.5,
         light: 0.5,
         lightAngle: 30,
         lightInfluence: 0.5,
+        gridStepSize: 50000,
+        gridMinQuantile: 0.01,
+        gridMaxQuantile: 0.95,
     };
     private canvas: HTMLCanvasElement;
     private gl: WebGLRenderingContext;
     private ext: { OES_vertex_array_object: OES_vertex_array_object };
     private matrix: TypedArray;
     private program: ShaderProgram;
-    private grid?: Grid;
+    private points?: number[][];
     private buffer?: Buffer;
     private vao?: Vao;
     private vertexCount: number;
@@ -200,7 +206,11 @@ export class Heat {
     }
 
     public setOptions(options: HeatOptions) {
-        const needNewBuffer = options.faces !== this.options.faces;
+        const needNewBuffer =
+            options.faces !== this.options.faces ||
+            options.gridMinQuantile !== this.options.gridMinQuantile ||
+            options.gridMaxQuantile !== this.options.gridMaxQuantile ||
+            options.gridStepSize !== this.options.gridStepSize;
 
         this.options = { ...this.options, ...options };
 
@@ -209,12 +219,14 @@ export class Heat {
             -Math.cos(degToRad(this.options.lightAngle)),
         ];
 
-        if (needNewBuffer && this.grid) {
-            this.setData(this.grid);
+        if (needNewBuffer && this.points) {
+            this.setData(this.points);
         }
     }
 
-    public setData(grid: Grid) {
+    public setData(points: number[][]) {
+        this.points = points;
+
         if (this.vao) {
             this.vao.remove();
         }
@@ -222,7 +234,12 @@ export class Heat {
             this.buffer.remove();
         }
 
-        this.grid = grid;
+        const grid = createGrid(
+            points,
+            this.options.gridStepSize,
+            this.options.gridMinQuantile,
+            this.options.gridMaxQuantile,
+        );
 
         mat4.fromTranslationScale(
             this.matrix,
@@ -277,7 +294,7 @@ export class Heat {
             for (let y = 0; y < grid.height; y++) {
                 const value = grid.array[x + y * grid.width];
 
-                if (value === 0) {
+                if (Number.isNaN(value)) {
                     continue;
                 }
 
@@ -391,4 +408,32 @@ export class Heat {
 
         gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     };
+}
+
+function createGrid(
+    geoPoints: number[][],
+    gridStepSize: number,
+    minQuantile: number,
+    maxQuantile: number,
+): Grid {
+    const points = geoPoints.map((point) => {
+        const lngLat = [point[0], point[1]];
+        const mapPoint = projectGeoToMap(lngLat);
+        return [mapPoint[0], mapPoint[1], point[2]];
+    });
+
+    const temps: number[] = [];
+    for (let i = 0; i < points.length; i++) {
+        temps.push(points[i][2]);
+    }
+    temps.sort((a, b) => a - b);
+    const minTemp = temps[Math.floor(temps.length * minQuantile)];
+    const maxTemp = temps[Math.min(Math.floor(temps.length * maxQuantile), temps.length - 1)];
+
+    points.forEach((point) => {
+        point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
+        point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
+    });
+
+    return pointsToGrid(points, { stepX: gridStepSize, stepY: gridStepSize });
 }

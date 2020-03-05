@@ -1,36 +1,3 @@
-export function hslToRgb(h: number, s: number, l: number) {
-    // Achromatic
-    if (s === 0) return [l, l, l];
-    h /= 360;
-
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-
-    return [
-        Math.round(hueToRgb(p, q, h + 1 / 3) * 255),
-        Math.round(hueToRgb(p, q, h) * 255),
-        Math.round(hueToRgb(p, q, h - 1 / 3) * 255),
-    ];
-}
-
-/**
- * Helpers
- */
-
-function hueToRgb(p: number, q: number, t: number) {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-
-    return p;
-}
-
-export function lerp(a: number, b: number, t: number) {
-    return a + t * (b - a);
-}
-
 export function clamp(value: number, min: number, max: number): number {
     value = Math.max(value, min);
     value = Math.min(value, max);
@@ -39,10 +6,6 @@ export function clamp(value: number, min: number, max: number): number {
 
 export function degToRad(degrees: number): number {
     return (degrees * Math.PI) / 180;
-}
-
-export function radToDeg(radians: number): number {
-    return (radians / Math.PI) * 180;
 }
 
 const worldSize = 2 ** 32;
@@ -57,13 +20,55 @@ export function projectGeoToMap(geoPoint: number[]): number[] {
     return [clamp(x, -worldHalf, worldHalf), clamp(y, -worldHalf, worldHalf), 0];
 }
 
-export function projectMapToGeo(mapPoint: number[]): number[] {
-    const geoPoint = [0, 0];
+export function geoDistance(lngLat1: number[], lngLat2: number[]): number {
+    const R = 6371000;
+    const rad = Math.PI / 180;
+    const lat1 = lngLat1[1] * rad;
+    const lat2 = lngLat2[1] * rad;
+    const sinDLat = Math.sin(((lngLat2[1] - lngLat1[1]) * rad) / 2);
+    const sinDLon = Math.sin(((lngLat2[0] - lngLat1[0]) * rad) / 2);
+    const a = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLon * sinDLon;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+}
 
-    geoPoint[0] = (mapPoint[0] * 360) / worldSize;
+export function parseQuery() {
+    const res: { [key: string]: number } = {};
+    location.search
+        .slice(1)
+        .split('&')
+        .map((str) => str.split('='))
+        .forEach((couple) => {
+            res[couple[0]] = Number(couple[1]);
+        });
+    return res;
+}
 
-    const latFactor = (-2 * Math.PI) / worldSize;
-    geoPoint[1] = 90.0 - 2 * radToDeg(Math.atan(Math.exp(mapPoint[1] * latFactor)));
+export function coordinatesPrecision(zoom: number): number {
+    return Math.ceil((zoom * Math.LN2 + Math.log(256 / 360 / 0.5)) / Math.LN10);
+}
 
-    return geoPoint;
+export function throttle(fn: (...args: any[]) => void, time: number) {
+    let lock = false;
+    let savedArgs: any[] | undefined;
+
+    function later() {
+        lock = false;
+        if (savedArgs) {
+            wrapperFn(...savedArgs);
+            savedArgs = undefined;
+        }
+    }
+
+    function wrapperFn(...args: any[]) {
+        if (lock) {
+            savedArgs = args;
+        } else {
+            fn(...args);
+            setTimeout(later, time);
+            lock = true;
+        }
+    }
+
+    return wrapperFn;
 }
