@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "es5",
+        "types": ["@2gis/gl-matrix", "2gl"],
+        "module": "es2015",
+        "moduleResolution": "node",
+        "lib": ["dom", "es6"],
+        "sourceMap": true,
+        "strict": true,
+        "noEmitHelpers": true,
+        "importHelpers": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "jsx": "react",
+        "allowSyntheticDefaultImports": true
+    }
+}

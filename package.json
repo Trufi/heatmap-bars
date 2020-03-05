@@ -1,0 +1,33 @@
+{
+    "name": "heatmap",
+    "version": "0.0.0",
+    "description": "",
+    "main": "dist/index.js",
+    "scripts": {
+        "start": "npm run dev",
+        "build": "webpack --production",
+        "dev": "webpack-dev-server",
+        "lint": "tslint 'src/**/*.ts'",
+        "prettier": "prettier --check \"./**/*.{ts,tsx,js,json,html,css}\"",
+        "test": "npm run lint && npm run prettier && npm run build"
+    },
+    "dependencies": {
+        "2gl": "^0.8.0",
+        "@types/dat.gui": "^0.7.5",
+        "dat.gui": "^0.7.6",
+        "tslib": "^1.10.0"
+    },
+    "devDependencies": {
+        "@2gis/gl-matrix": "^2.4.5",
+        "delaunator": "^4.0.1",
+        "fork-ts-checker-webpack-plugin": "^4.0.2",
+        "prettier": "^1.19.1",
+        "ts-loader": "^6.2.1",
+        "tslint": "^6.0.0",
+        "tslint-eslint-rules": "^5.4.0",
+        "typescript": "^3.7.5",
+        "webpack": "^4.41.5",
+        "webpack-cli": "^3.3.10",
+        "webpack-dev-server": "^3.10.1"
+    }
+}
