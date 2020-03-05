@@ -5,24 +5,81 @@ import Buffer from '2gl/Buffer';
 import Vao from '2gl/Vao';
 
 import * as mat4 from '@2gis/gl-matrix/mat4';
+import * as vec2 from '@2gis/gl-matrix/vec2';
 import { Grid } from './points';
-// import * as vec3 from '@2gis/gl-matrix/vec3';
+import { degToRad } from './utils';
 
 const tempMatrix = new Float32Array(mat4.create());
+const compileShader = WebGLRenderingContext.prototype.compileShader;
 
+WebGLRenderingContext.prototype.compileShader = function(shader) {
+    compileShader.call(this, shader);
+
+    if (!this.getShaderParameter(shader, this.COMPILE_STATUS)) {
+        console.log(this.getShaderInfoLog(shader));
+    }
+};
+
+const linkProgram = WebGLRenderingContext.prototype.linkProgram;
+WebGLRenderingContext.prototype.linkProgram = function(program) {
+    linkProgram.call(this, program);
+
+    if (!this.getProgramParameter(program, this.LINK_STATUS)) {
+        console.error(this.getProgramInfoLog(program));
+    }
+};
 const vertexShaderSource = `
     attribute vec3 a_position;
     attribute vec2 a_offset;
+    attribute vec2 a_normal;
     attribute float a_value;
 
     uniform mat4 u_model;
     uniform float u_height;
     uniform float u_size;
 
-    varying float v_value;
+    uniform vec2 u_hue_range;
+    uniform vec3 u_sla;
+
+    uniform vec2 u_light_direction;
+    uniform float u_light_influence;
+
+    varying vec4 v_color;
+
+    float hueToRgb(float p, float q, float t) {
+        if (t < 0.0) t += 1.0;
+        if (t > 1.0) t -= 1.0;
+        if (t < 0.166666) return p + (q - p) * 6.0 * t;
+        if (t < 0.5) return q;
+        if (t < 0.666666) return p + (q - p) * (0.666666 - t) * 6.0;
+
+        return p;
+    }
+
+    vec3 hslToRgb(float h, float s, float l) {
+        // Achromatic
+        if (s == 0.0) return vec3(l, l, l);
+        h /= 360.0;
+
+        float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
+        float p = 2.0 * l - q;
+
+        return vec3(
+            hueToRgb(p, q, h + 0.333333),
+            hueToRgb(p, q, h),
+            hueToRgb(p, q, h - 0.333333)
+        );
+    }
 
     void main(void) {
-        v_value = a_value;
+        float hue =  mix(u_hue_range.x, u_hue_range.y, a_value);
+        float light_weight = 1.0 + u_light_influence * (abs(dot(u_light_direction, a_normal)) - 1.0);
+        if (a_normal.x == 0.0 && a_normal.y == 0.0) {
+            light_weight = 1.0;
+        }
+
+        vec3 rgb = hslToRgb(hue, u_sla.x, u_sla.y);
+        v_color = vec4(rgb * light_weight, u_sla.z);
 
         gl_Position = u_model * vec4(
             vec2(a_position.xy + a_offset * u_size),
@@ -35,10 +92,10 @@ const vertexShaderSource = `
 const fragmentShaderSource = `
     precision mediump float;
 
-    varying float v_value;
+    varying vec4 v_color;
 
     void main(void) {
-        gl_FragColor = vec4(v_value, 0.0, 0.0, 1.0);
+        gl_FragColor = v_color;
     }
 `;
 
@@ -46,6 +103,13 @@ export interface HeatOptions {
     size: number;
     height: number;
     faces: number;
+    opacity: number;
+    hueOfMinValue: number;
+    hueOfMaxValue: number;
+    saturation: number;
+    light: number;
+    lightAngle: number;
+    lightInfluence: number;
 }
 
 export class Heat {
@@ -53,28 +117,42 @@ export class Heat {
         size: 1,
         height: 500000,
         faces: 4,
+        opacity: 1,
+        hueOfMinValue: 240,
+        hueOfMaxValue: 0,
+        saturation: 0.5,
+        light: 0.5,
+        lightAngle: 30,
+        lightInfluence: 0.5,
     };
     private canvas: HTMLCanvasElement;
     private gl: WebGLRenderingContext;
     private ext: { OES_vertex_array_object: OES_vertex_array_object };
     private matrix: TypedArray;
     private program: ShaderProgram;
+    private grid?: Grid;
     private buffer?: Buffer;
     private vao?: Vao;
     private vertexCount: number;
+    private lightDirection: number[];
 
     constructor(private map: any, container: HTMLElement, options?: HeatOptions) {
         if (options) {
             this.setOptions(options);
         }
 
+        this.lightDirection = [
+            -Math.sin(degToRad(this.options.lightAngle)),
+            -Math.cos(degToRad(this.options.lightAngle)),
+        ];
+
         this.canvas = document.createElement('canvas');
         this.canvas.style.position = 'absolute';
         this.canvas.style.left = '0';
         this.canvas.style.top = '0';
         this.canvas.style.pointerEvents = 'none';
-
         container.appendChild(this.canvas);
+
         const gl = (this.gl = this.canvas.getContext('webgl', {
             antialias: true,
             premultipliedAlpha: false,
@@ -94,18 +172,27 @@ export class Heat {
         gl.enable(gl.CULL_FACE);
         gl.enable(gl.DEPTH_TEST);
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.ONE, gl.ZERO);
 
         this.matrix = mat4.create();
         this.vertexCount = 0;
         this.program = new ShaderProgram({
             vertex: new Shader('vertex', vertexShaderSource),
             fragment: new Shader('fragment', fragmentShaderSource),
-            attributes: [{ name: 'a_position' }, { name: 'a_offset' }, { name: 'a_value' }],
+            attributes: [
+                { name: 'a_position' },
+                { name: 'a_offset' },
+                { name: 'a_normal' },
+                { name: 'a_value' },
+            ],
             uniforms: [
                 { name: 'u_model', type: 'mat4' },
                 { name: 'u_height', type: '1f' },
                 { name: 'u_size', type: '1f' },
+                { name: 'u_hue_range', type: '2f' },
+                { name: 'u_sla', type: '3f' },
+                { name: 'u_light_direction', type: '2f' },
+                { name: 'u_light_influence', type: '1f' },
             ],
         });
 
@@ -113,10 +200,30 @@ export class Heat {
     }
 
     public setOptions(options: HeatOptions) {
+        const needNewBuffer = options.faces !== this.options.faces;
+
         this.options = { ...this.options, ...options };
+
+        this.lightDirection = [
+            -Math.sin(degToRad(this.options.lightAngle)),
+            -Math.cos(degToRad(this.options.lightAngle)),
+        ];
+
+        if (needNewBuffer && this.grid) {
+            this.setData(this.grid);
+        }
     }
 
     public setData(grid: Grid) {
+        if (this.vao) {
+            this.vao.remove();
+        }
+        if (this.buffer) {
+            this.buffer.remove();
+        }
+
+        this.grid = grid;
+
         mat4.fromTranslationScale(
             this.matrix,
             [grid.minX, grid.minY, 0],
@@ -126,10 +233,17 @@ export class Heat {
         const verticesPerCell = this.options.faces * 9;
         this.vertexCount = grid.width * grid.height * verticesPerCell;
 
-        const array = new Float32Array(this.vertexCount * 6);
+        const array: number[] = [];
         let i = 0;
 
-        const vertex = (x: number, y: number, z: number, offset: number[], value: number) => {
+        const vertex = (
+            x: number,
+            y: number,
+            z: number,
+            offset: number[],
+            normal: number[],
+            value: number,
+        ) => {
             // position
             array[i++] = x;
             array[i++] = y;
@@ -139,10 +253,16 @@ export class Heat {
             array[i++] = offset[0];
             array[i++] = offset[1];
 
+            // normal
+            array[i++] = normal[0];
+            array[i++] = normal[1];
+
             array[i++] = value;
         };
 
+        const wallNormal: number[] = [];
         const zeroOffset = [0, 0];
+        const roofNormal = [0, 0];
         const offsets: number[][] = [];
         const angle = (Math.PI * 2) / this.options.faces;
         const startAngle = -angle / 2;
@@ -157,31 +277,38 @@ export class Heat {
             for (let y = 0; y < grid.height; y++) {
                 const value = grid.array[x + y * grid.width];
 
+                if (value === 0) {
+                    continue;
+                }
+
                 for (let i = 1; i < offsets.length; i++) {
                     const offsetLeft = offsets[i - 1];
                     const offsetRight = offsets[i];
 
+                    vec2.add(wallNormal, offsetLeft, offsetRight);
+                    vec2.normalize(wallNormal, wallNormal);
+
                     // roof
-                    vertex(x, y, 1, zeroOffset, value);
-                    vertex(x, y, 1, offsetRight, value);
-                    vertex(x, y, 1, offsetLeft, value);
+                    vertex(x, y, 1, zeroOffset, roofNormal, value);
+                    vertex(x, y, 1, offsetRight, roofNormal, value);
+                    vertex(x, y, 1, offsetLeft, roofNormal, value);
 
                     // wall
-                    vertex(x, y, 0, offsetLeft, value);
-                    vertex(x, y, 1, offsetLeft, value);
-                    vertex(x, y, 1, offsetRight, value);
+                    vertex(x, y, 0, offsetLeft, wallNormal, value);
+                    vertex(x, y, 1, offsetLeft, wallNormal, value);
+                    vertex(x, y, 1, offsetRight, wallNormal, value);
 
-                    vertex(x, y, 1, offsetRight, value);
-                    vertex(x, y, 0, offsetRight, value);
-                    vertex(x, y, 0, offsetLeft, value);
+                    vertex(x, y, 1, offsetRight, wallNormal, value);
+                    vertex(x, y, 0, offsetRight, wallNormal, value);
+                    vertex(x, y, 0, offsetLeft, wallNormal, value);
                 }
             }
         }
 
-        const stride = 6 * 4;
+        const stride = 8 * 4;
         let offset = 0;
 
-        this.buffer = new Buffer(array);
+        this.buffer = new Buffer(new Float32Array(array));
 
         const positionBuffer = new BufferChannel(this.buffer, {
             itemSize: 3,
@@ -192,6 +319,14 @@ export class Heat {
         offset += 3 * 4;
 
         const offsetBuffer = new BufferChannel(this.buffer, {
+            itemSize: 2,
+            dataType: Buffer.Float,
+            stride,
+            offset,
+        });
+        offset += 2 * 4;
+
+        const normalBuffer = new BufferChannel(this.buffer, {
             itemSize: 2,
             dataType: Buffer.Float,
             stride,
@@ -210,6 +345,7 @@ export class Heat {
         this.vao = new Vao(this.program, {
             a_position: positionBuffer,
             a_offset: offsetBuffer,
+            a_normal: normalBuffer,
             a_value: valueBuffer,
         });
     }
@@ -242,6 +378,10 @@ export class Heat {
             u_size: this.options.size,
             u_height: this.options.height,
             u_model: tempMatrix,
+            u_hue_range: [this.options.hueOfMinValue, this.options.hueOfMaxValue],
+            u_sla: [this.options.saturation, this.options.light, this.options.opacity],
+            u_light_direction: this.lightDirection,
+            u_light_influence: this.options.lightInfluence,
         });
 
         this.vao.bind({

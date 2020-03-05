@@ -9,7 +9,9 @@ const container = document.getElementById('map') as HTMLElement;
 
 const map = ((window as any).map = new mapgl.Map(container, {
     center: [37.62017, 55.753466],
-    zoom: 11,
+    zoom: 12.1,
+    rotation: 20,
+    pitch: 30,
     key: '042b5b75-f847-4f2a-b695-b5f58adc9dfd',
     zoomControl: false,
 }));
@@ -18,20 +20,46 @@ const heatmap = new Heat(map, container);
 
 const gui = new dat.GUI();
 const heatOptions: HeatOptions = {
-    size: 1,
+    size: 1.4,
     height: 500000,
     faces: 4,
+    opacity: 0.9,
+    hueOfMinValue: 240,
+    hueOfMaxValue: 0,
+    saturation: 0.5,
+    light: 0.5,
+    lightAngle: 30,
+    lightInfluence: 0.5,
 };
+heatmap.setOptions(heatOptions);
+
 gui.add(heatOptions, 'size', 0, 2).onChange(() => heatmap.setOptions(heatOptions));
 gui.add(heatOptions, 'height', 0, 1000000).onChange(() => heatmap.setOptions(heatOptions));
-gui.add(heatOptions, 'faces', 2, 20).onChange(() => heatmap.setOptions(heatOptions));
+gui.add(heatOptions, 'faces', 2, 20, 1).onChange(() => heatmap.setOptions(heatOptions));
+
+const colorFolder = gui.addFolder('Color');
+colorFolder
+    .add(heatOptions, 'hueOfMinValue', 0, 360)
+    .onChange(() => heatmap.setOptions(heatOptions));
+colorFolder
+    .add(heatOptions, 'hueOfMaxValue', 0, 360)
+    .onChange(() => heatmap.setOptions(heatOptions));
+colorFolder.add(heatOptions, 'saturation', 0, 1).onChange(() => heatmap.setOptions(heatOptions));
+colorFolder.add(heatOptions, 'light', 0, 1).onChange(() => heatmap.setOptions(heatOptions));
+colorFolder.add(heatOptions, 'opacity', 0, 1).onChange(() => heatmap.setOptions(heatOptions));
+
+const lightFolder = gui.addFolder('Light');
+lightFolder.add(heatOptions, 'lightAngle', 0, 360).onChange(() => heatmap.setOptions(heatOptions));
+lightFolder
+    .add(heatOptions, 'lightInfluence', 0, 1)
+    .onChange(() => heatmap.setOptions(heatOptions));
 
 const bounds = [
     projectGeoToMap([37.53468263266983, 55.8057898485786]),
     projectGeoToMap([37.73449647407034, 55.680559093862406]),
 ];
 
-fetch('./data.csv')
+fetch('./assets/data.csv')
     .then((res) => res.text())
     .then((res) => {
         const rows = res.split('\n').slice(1);
@@ -75,46 +103,6 @@ fetch('./data.csv')
         const stepX = step;
         const stepY = step;
         const grid = pointsToGrid(points, { stepX, stepY });
-        console.log(grid);
-
-        let temp = grid.array.slice();
-        temp.sort((a, b) => a - b);
-        temp = temp.slice(temp.findIndex((x) => x > 0));
-        const range = new Array(5).fill(0).map((_, i) => temp[Math.ceil((i * temp.length) / 5)]);
-
-        console.log(range);
-
-        // const hexColors = ['00ff08', 'b4ff00', 'e4ff00', 'ff8d00', 'ff0000'].map((c) => '#99' + c);
 
         heatmap.setData(grid);
-
-        // grid.array.forEach((z, index) => {
-        //     // index = x + y * width
-        //     const x = index % grid.width;
-        //     const y = Math.floor(index / grid.width);
-
-        //     const topLeft = projectMapToGeo([x * stepX + grid.minX, y * stepY + grid.minY]);
-        //     const bottomRight = projectMapToGeo([
-        //         (x + 1) * stepX + grid.minX,
-        //         (y + 1) * stepY + grid.minY,
-        //     ]);
-        //     const bottomLeft = [topLeft[0], bottomRight[1]];
-        //     const topRight = [bottomRight[0], topLeft[1]];
-
-        //     let i = range.findIndex((range) => z < range);
-        //     if (i === -1) {
-        //         i = 5;
-        //     }
-        //     i--;
-        //     if (i === -1) {
-        //         return;
-        //     }
-
-        //     // tslint:disable-next-line
-        //     new Polygon(map._impl, {
-        //         coordinates: [[topLeft, bottomLeft, bottomRight, topRight]],
-        //         color: hexColors[i % hexColors.length],
-        //         borderWidth: 0,
-        //     });
-        // });
     });

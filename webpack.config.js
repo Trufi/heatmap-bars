@@ -31,7 +31,7 @@ module.exports = (_, args) => {
         output: {
             filename: 'index.js',
             path: path.resolve(__dirname, 'dist'),
-            publicPath: '/',
+            publicPath: '/dist',
         },
 
         plugins: [
@@ -48,7 +48,6 @@ module.exports = (_, args) => {
             stats: {
                 modules: false,
             },
-            contentBase: path.resolve(__dirname, 'dist'),
             disableHostCheck: true,
         },
     };
