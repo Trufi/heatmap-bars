@@ -3,6 +3,15 @@
     "version": "0.0.0",
     "description": "",
     "main": "dist/index.js",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Trufi/heatmap.git"
+    },
+    "author": {
+        "name": "Mstislav Zhivodkov",
+        "email": "stevemyz@gmail.com",
+        "url": "https://trufi.github.io/"
+    },
     "scripts": {
         "start": "npm run dev",
         "build": "webpack --production",
