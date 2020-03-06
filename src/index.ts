@@ -36,9 +36,11 @@ const defaultHeatOptions: HeatOptions = {
     faces: 4,
     opacity: 0.9,
     hueOfMinValue: 240,
+    saturationOfMinValue: 0.5,
+    lightOfMinValue: 0.5,
     hueOfMaxValue: 0,
-    saturation: 0.5,
-    light: 0.5,
+    saturationOfMaxValue: 0.5,
+    lightOfMaxValue: 0.5,
     lightAngle: 30,
     lightInfluence: 0.5,
     gridStepSize: 50000,
@@ -146,10 +148,11 @@ formFolder.add(heatOptions, 'faces', 2, 20, 1).onChange(update);
 
 const colorFolder = gui.addFolder('Color');
 colorFolder.add(heatOptions, 'hueOfMinValue', 0, 360, 1).onChange(update);
+colorFolder.add(heatOptions, 'saturationOfMinValue', 0, 1, 0.01).onChange(update);
+colorFolder.add(heatOptions, 'lightOfMinValue', 0, 1, 0.01).onChange(update);
 colorFolder.add(heatOptions, 'hueOfMaxValue', 0, 360, 1).onChange(update);
-colorFolder.add(heatOptions, 'saturation', 0, 1, 0.01).onChange(update);
-colorFolder.add(heatOptions, 'light', 0, 1, 0.01).onChange(update);
-colorFolder.add(heatOptions, 'opacity', 0, 1, 0.01).onChange(update);
+colorFolder.add(heatOptions, 'saturationOfMaxValue', 0, 1, 0.01).onChange(update);
+colorFolder.add(heatOptions, 'lightOfMaxValue', 0, 1, 0.01).onChange(update);
 
 const lightFolder = gui.addFolder('Light');
 lightFolder.add(heatOptions, 'lightAngle', 0, 360, 1).onChange(update);

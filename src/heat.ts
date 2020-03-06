@@ -42,7 +42,9 @@ const vertexShaderSource = `
     uniform float u_size;
 
     uniform vec2 u_hue_range;
-    uniform vec3 u_sla;
+    uniform vec2 u_saturation_range;
+    uniform vec2 u_light_range;
+    uniform float u_alpha;
 
     uniform vec2 u_light_direction;
     uniform float u_light_influence;
@@ -75,22 +77,19 @@ const vertexShaderSource = `
     }
 
     void main(void) {
-        // points.forEach((point) => {
-            //     point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
-            //     point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
-            // });
-
         float value = max(min(a_value, u_value_range.y), u_value_range.x);
         value = (value - u_value_range.x) / (u_value_range.y - u_value_range.x);
 
-        float hue =  mix(u_hue_range.x, u_hue_range.y, value);
         float light_weight = 1.0 + u_light_influence * (abs(dot(u_light_direction, a_normal)) - 1.0);
         if (a_normal.x == 0.0 && a_normal.y == 0.0) {
             light_weight = 1.0;
         }
 
-        vec3 rgb = hslToRgb(hue, u_sla.x, u_sla.y);
-        v_color = vec4(rgb * light_weight, u_sla.z);
+        float hue = mix(u_hue_range.x, u_hue_range.y, value);
+        float saturation = mix(u_saturation_range.x, u_saturation_range.y, value);
+        float light = mix(u_light_range.x, u_light_range.y, value);
+        vec3 rgb = hslToRgb(hue, saturation, light);
+        v_color = vec4(rgb * light_weight, u_alpha);
 
         gl_Position = u_model * vec4(
             vec2(a_position.xy + a_offset * u_size),
@@ -118,9 +117,11 @@ export interface HeatOptions {
     faces: number;
     opacity: number;
     hueOfMinValue: number;
+    saturationOfMinValue: number;
+    lightOfMinValue: number;
     hueOfMaxValue: number;
-    saturation: number;
-    light: number;
+    saturationOfMaxValue: number;
+    lightOfMaxValue: number;
     lightAngle: number;
     lightInfluence: number;
     gridStepSize: number;
@@ -157,9 +158,11 @@ export class Heat {
         faces: 4,
         opacity: 0.9,
         hueOfMinValue: 240,
+        saturationOfMinValue: 0.5,
+        lightOfMinValue: 0.5,
         hueOfMaxValue: 0,
-        saturation: 0.5,
-        light: 0.5,
+        saturationOfMaxValue: 0.5,
+        lightOfMaxValue: 0.5,
         lightAngle: 30,
         lightInfluence: 0.5,
         gridStepSize: 50000,
@@ -239,7 +242,9 @@ export class Heat {
                 { name: 'u_height', type: '1f' },
                 { name: 'u_size', type: '1f' },
                 { name: 'u_hue_range', type: '2f' },
-                { name: 'u_sla', type: '3f' },
+                { name: 'u_saturation_range', type: '2f' },
+                { name: 'u_light_range', type: '2f' },
+                { name: 'u_alpha', type: '1f' },
                 { name: 'u_light_direction', type: '2f' },
                 { name: 'u_light_influence', type: '1f' },
                 { name: 'u_value_range', type: '2f' },
@@ -465,7 +470,12 @@ export class Heat {
             u_height: this.options.height,
             u_model: tempMatrix,
             u_hue_range: [this.options.hueOfMinValue, this.options.hueOfMaxValue],
-            u_sla: [this.options.saturation, this.options.light, this.options.opacity],
+            u_saturation_range: [
+                this.options.saturationOfMinValue,
+                this.options.saturationOfMaxValue,
+            ],
+            u_light_range: [this.options.lightOfMinValue, this.options.lightOfMaxValue],
+            u_alpha: this.options.opacity,
             u_light_direction: this.lightDirection,
             u_light_influence: this.options.lightInfluence,
             u_value_range: [this.minValue.value, this.maxValue.value],
