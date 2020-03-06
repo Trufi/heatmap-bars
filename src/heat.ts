@@ -28,11 +28,14 @@ WebGLRenderingContext.prototype.linkProgram = function(program) {
         console.error(this.getProgramInfoLog(program));
     }
 };
+
 const vertexShaderSource = `
     attribute vec3 a_position;
     attribute vec2 a_offset;
     attribute vec2 a_normal;
     attribute float a_value;
+
+    uniform vec2 u_value_range;
 
     uniform mat4 u_model;
     uniform float u_height;
@@ -72,7 +75,15 @@ const vertexShaderSource = `
     }
 
     void main(void) {
-        float hue =  mix(u_hue_range.x, u_hue_range.y, a_value);
+        // points.forEach((point) => {
+            //     point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
+            //     point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
+            // });
+
+        float value = max(min(a_value, u_value_range.y), u_value_range.x);
+        value = (value - u_value_range.x) / (u_value_range.y - u_value_range.x);
+
+        float hue =  mix(u_hue_range.x, u_hue_range.y, value);
         float light_weight = 1.0 + u_light_influence * (abs(dot(u_light_direction, a_normal)) - 1.0);
         if (a_normal.x == 0.0 && a_normal.y == 0.0) {
             light_weight = 1.0;
@@ -83,7 +94,7 @@ const vertexShaderSource = `
 
         gl_Position = u_model * vec4(
             vec2(a_position.xy + a_offset * u_size),
-            a_position.z * u_height * a_value,
+            a_position.z * u_height * value,
             1.0
         );
     }
@@ -113,6 +124,7 @@ export interface HeatOptions {
     gridStepSize: number;
     gridMinPercentile: number;
     gridMaxPercentile: number;
+    adaptiveViewportPallete: boolean;
 }
 
 export class Heat {
@@ -130,6 +142,7 @@ export class Heat {
         gridStepSize: 50000,
         gridMinPercentile: 0.01,
         gridMaxPercentile: 0.95,
+        adaptiveViewportPallete: false,
     };
     private canvas: HTMLCanvasElement;
     private gl: WebGLRenderingContext;
@@ -137,10 +150,13 @@ export class Heat {
     private matrix: TypedArray;
     private program: ShaderProgram;
     private points?: number[][];
+    private grid?: Grid;
     private buffer?: Buffer;
     private vao?: Vao;
     private vertexCount: number;
     private lightDirection: number[];
+    private minValue: number;
+    private maxValue: number;
 
     constructor(private map: any, container: HTMLElement, options?: HeatOptions) {
         if (options) {
@@ -151,6 +167,8 @@ export class Heat {
             -Math.sin(degToRad(this.options.lightAngle)),
             -Math.cos(degToRad(this.options.lightAngle)),
         ];
+        this.minValue = 0;
+        this.maxValue = 0;
 
         this.canvas = document.createElement('canvas');
         this.canvas.style.position = 'absolute';
@@ -199,18 +217,30 @@ export class Heat {
                 { name: 'u_sla', type: '3f' },
                 { name: 'u_light_direction', type: '2f' },
                 { name: 'u_light_influence', type: '1f' },
+                { name: 'u_value_range', type: '2f' },
             ],
         });
 
         requestAnimationFrame(this.update);
+
+        this.map.on('moveend', () => {
+            if (this.options.adaptiveViewportPallete) {
+                (window as any).requestIdleCallback(() => {
+                    this.findViewportMinMaxTemp();
+                });
+            }
+        });
     }
 
     public setOptions(options: HeatOptions) {
         const needNewBuffer =
             options.faces !== this.options.faces ||
-            options.gridMinPercentile !== this.options.gridMinPercentile ||
-            options.gridMaxPercentile !== this.options.gridMaxPercentile ||
             options.gridStepSize !== this.options.gridStepSize;
+
+        const needNewMinMax =
+            options.adaptiveViewportPallete !== this.options.adaptiveViewportPallete ||
+            options.gridMinPercentile !== this.options.gridMinPercentile ||
+            options.gridMaxPercentile !== this.options.gridMaxPercentile;
 
         this.options = { ...this.options, ...options };
 
@@ -221,6 +251,8 @@ export class Heat {
 
         if (needNewBuffer && this.points) {
             this.setData(this.points);
+        } else if (needNewMinMax) {
+            this.findViewportMinMaxTemp();
         }
     }
 
@@ -234,12 +266,8 @@ export class Heat {
             this.buffer.remove();
         }
 
-        const grid = createGrid(
-            points,
-            this.options.gridStepSize,
-            this.options.gridMinPercentile,
-            this.options.gridMaxPercentile,
-        );
+        const grid = (this.grid = createGrid(points, this.options.gridStepSize));
+        this.findViewportMinMaxTemp();
 
         mat4.fromTranslationScale(
             this.matrix,
@@ -398,6 +426,7 @@ export class Heat {
             u_sla: [this.options.saturation, this.options.light, this.options.opacity],
             u_light_direction: this.lightDirection,
             u_light_influence: this.options.lightInfluence,
+            u_value_range: [this.minValue, this.maxValue],
         });
 
         this.vao.bind({
@@ -407,13 +436,66 @@ export class Heat {
 
         gl.drawArrays(gl.TRIANGLES, 0, this.vertexCount);
     };
+
+    private findViewportMinMaxTemp() {
+        if (!this.grid) {
+            return;
+        }
+        const grid = this.grid;
+        const min = [0, 0];
+        const max = [grid.width, grid.height];
+
+        if (this.options.adaptiveViewportPallete) {
+            const bounds = this.map.getBounds();
+            const northEast = projectGeoToMap(bounds.northEast);
+            const southWest = projectGeoToMap(bounds.southWest);
+
+            vec2.min(min, northEast, southWest);
+
+            vec2.max(max, northEast, southWest);
+
+            vec2.sub(min, min, [grid.minX, grid.minY]);
+            vec2.sub(max, max, [grid.minX, grid.minY]);
+
+            const scaler = [1 / grid.stepX, 1 / grid.stepY];
+            vec2.mul(min, min, scaler);
+            vec2.mul(max, max, scaler);
+
+            vec2.floor(min, min);
+            vec2.max(min, min, [0, 0]);
+
+            vec2.floor(max, max);
+            vec2.min(max, max, [grid.width, grid.height]);
+        }
+
+        const temps: number[] = [];
+        for (let x = min[0]; x < max[0]; x++) {
+            for (let y = min[1]; y < max[1]; y++) {
+                const value = grid.array[x + y * grid.width];
+                if (!Number.isNaN(value)) {
+                    temps.push(value);
+                }
+            }
+        }
+
+        temps.sort((a, b) => a - b);
+
+        this.minValue = temps[Math.floor(temps.length * this.options.gridMinPercentile)];
+        this.maxValue =
+            temps[
+                Math.min(
+                    Math.floor(temps.length * this.options.gridMaxPercentile),
+                    temps.length - 1,
+                )
+            ];
+    }
 }
 
 function createGrid(
     geoPoints: number[][],
     gridStepSize: number,
-    minPercentile: number,
-    maxPercentile: number,
+    // minPercentile: number,
+    // maxPercentile: number,
 ): Grid {
     const points = geoPoints.map((point) => {
         const lngLat = [point[0], point[1]];
@@ -421,18 +503,10 @@ function createGrid(
         return [mapPoint[0], mapPoint[1], point[2]];
     });
 
-    const temps: number[] = [];
-    for (let i = 0; i < points.length; i++) {
-        temps.push(points[i][2]);
-    }
-    temps.sort((a, b) => a - b);
-    const minTemp = temps[Math.floor(temps.length * minPercentile)];
-    const maxTemp = temps[Math.min(Math.floor(temps.length * maxPercentile), temps.length - 1)];
-
-    points.forEach((point) => {
-        point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
-        point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
-    });
+    // points.forEach((point) => {
+    //     point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
+    //     point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
+    // });
 
     return pointsToGrid(points, { stepX: gridStepSize, stepY: gridStepSize });
 }

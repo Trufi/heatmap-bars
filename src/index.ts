@@ -44,6 +44,7 @@ const defaultHeatOptions: HeatOptions = {
     gridStepSize: 50000,
     gridMinPercentile: 0.01,
     gridMaxPercentile: 0.95,
+    adaptiveViewportPallete: false,
 };
 const heatOptions: HeatOptions = { ...defaultHeatOptions };
 heatmap.setOptions(heatOptions);
@@ -161,3 +162,5 @@ gridFolder.add(filterConfig, 'radius', 1, 50000, 1).onChange(
         updateUrl();
     }, 100),
 );
+
+gui.add(heatOptions, 'adaptiveViewportPallete').onChange(update);
