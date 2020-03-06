@@ -111,8 +111,8 @@ export interface HeatOptions {
     lightAngle: number;
     lightInfluence: number;
     gridStepSize: number;
-    gridMinQuantile: number;
-    gridMaxQuantile: number;
+    gridMinPercentile: number;
+    gridMaxPercentile: number;
 }
 
 export class Heat {
@@ -128,8 +128,8 @@ export class Heat {
         lightAngle: 30,
         lightInfluence: 0.5,
         gridStepSize: 50000,
-        gridMinQuantile: 0.01,
-        gridMaxQuantile: 0.95,
+        gridMinPercentile: 0.01,
+        gridMaxPercentile: 0.95,
     };
     private canvas: HTMLCanvasElement;
     private gl: WebGLRenderingContext;
@@ -208,8 +208,8 @@ export class Heat {
     public setOptions(options: HeatOptions) {
         const needNewBuffer =
             options.faces !== this.options.faces ||
-            options.gridMinQuantile !== this.options.gridMinQuantile ||
-            options.gridMaxQuantile !== this.options.gridMaxQuantile ||
+            options.gridMinPercentile !== this.options.gridMinPercentile ||
+            options.gridMaxPercentile !== this.options.gridMaxPercentile ||
             options.gridStepSize !== this.options.gridStepSize;
 
         this.options = { ...this.options, ...options };
@@ -237,8 +237,8 @@ export class Heat {
         const grid = createGrid(
             points,
             this.options.gridStepSize,
-            this.options.gridMinQuantile,
-            this.options.gridMaxQuantile,
+            this.options.gridMinPercentile,
+            this.options.gridMaxPercentile,
         );
 
         mat4.fromTranslationScale(
@@ -412,8 +412,8 @@ export class Heat {
 function createGrid(
     geoPoints: number[][],
     gridStepSize: number,
-    minQuantile: number,
-    maxQuantile: number,
+    minPercentile: number,
+    maxPercentile: number,
 ): Grid {
     const points = geoPoints.map((point) => {
         const lngLat = [point[0], point[1]];
@@ -426,8 +426,8 @@ function createGrid(
         temps.push(points[i][2]);
     }
     temps.sort((a, b) => a - b);
-    const minTemp = temps[Math.floor(temps.length * minQuantile)];
-    const maxTemp = temps[Math.min(Math.floor(temps.length * maxQuantile), temps.length - 1)];
+    const minTemp = temps[Math.floor(temps.length * minPercentile)];
+    const maxTemp = temps[Math.min(Math.floor(temps.length * maxPercentile), temps.length - 1)];
 
     points.forEach((point) => {
         point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);

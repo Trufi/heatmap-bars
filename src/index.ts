@@ -42,8 +42,8 @@ const defaultHeatOptions: HeatOptions = {
     lightAngle: 30,
     lightInfluence: 0.5,
     gridStepSize: 50000,
-    gridMinQuantile: 0.01,
-    gridMaxQuantile: 0.95,
+    gridMinPercentile: 0.01,
+    gridMaxPercentile: 0.95,
 };
 const heatOptions: HeatOptions = { ...defaultHeatOptions };
 heatmap.setOptions(heatOptions);
@@ -152,8 +152,8 @@ lightFolder.add(heatOptions, 'lightInfluence', 0, 1, 0.01).onChange(update);
 
 const gridFolder = gui.addFolder('Grid');
 gridFolder.add(heatOptions, 'gridStepSize', 20000, 200000, 1).onChange(update);
-gridFolder.add(heatOptions, 'gridMinQuantile', 0, 1, 0.01).onChange(update);
-gridFolder.add(heatOptions, 'gridMaxQuantile', 0, 1, 0.01).onChange(update);
+gridFolder.add(heatOptions, 'gridMinPercentile', 0, 1, 0.01).onChange(update);
+gridFolder.add(heatOptions, 'gridMaxPercentile', 0, 1, 0.01).onChange(update);
 
 gridFolder.add(filterConfig, 'radius', 1, 50000, 1).onChange(
     throttle(() => {
