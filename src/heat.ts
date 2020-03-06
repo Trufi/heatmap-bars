@@ -193,6 +193,7 @@ export class Heat {
         ];
         this.minValue = { startTime: 0, endTime: 0, value: 0, from: 0, to: 0 };
         this.maxValue = { startTime: 0, endTime: 0, value: 0, from: 0, to: 0 };
+        this.needRerender = false;
 
         this.canvas = document.createElement('canvas');
         this.canvas.style.position = 'absolute';
