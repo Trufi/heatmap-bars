@@ -247,9 +247,6 @@ export class Heat {
             [grid.stepX, grid.stepY, 1],
         );
 
-        const verticesPerCell = this.options.faces * 9;
-        this.vertexCount = grid.width * grid.height * verticesPerCell;
-
         const array: number[] = [];
         let i = 0;
 
@@ -321,6 +318,8 @@ export class Heat {
                 }
             }
         }
+
+        this.vertexCount = array.length / 8;
 
         const stride = 8 * 4;
         let offset = 0;

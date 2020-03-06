@@ -10,7 +10,7 @@
         "lint": "tslint 'src/**/*.ts'",
         "prettier": "prettier --check \"./**/*.{ts,tsx,js,json,html,css}\"",
         "test": "npm run lint && npm run prettier && npm run build",
-        "predeploy": "npm run build && mkdir -p build && mv index.html assets dist build",
+        "predeploy": "npm run build && cp -r index.html assets dist build",
         "deploy": "gh-pages -d build"
     },
     "dependencies": {
