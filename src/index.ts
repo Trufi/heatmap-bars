@@ -44,7 +44,7 @@ const defaultHeatOptions: HeatOptions = {
     gridStepSize: 50000,
     gridMinPercentile: 0.01,
     gridMaxPercentile: 0.95,
-    adaptiveViewportPallete: false,
+    adaptiveViewportPallete: true,
 };
 const heatOptions: HeatOptions = { ...defaultHeatOptions };
 heatmap.setOptions(heatOptions);
@@ -115,7 +115,11 @@ function restoreFromUrl() {
     map.setPitch(query.pitch, { animate: false });
     for (const key in heatOptions) {
         if (query[key] !== undefined && !Number.isNaN(query[key])) {
-            (heatOptions as any)[key] = query[key];
+            if (key === 'adaptiveViewportPallete') {
+                (heatOptions as any)[key] = Boolean(query[key]);
+            } else {
+                (heatOptions as any)[key] = query[key];
+            }
         }
     }
     for (const key in filterConfig) {

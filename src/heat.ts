@@ -7,7 +7,7 @@ import Vao from '2gl/Vao';
 import * as mat4 from '@2gis/gl-matrix/mat4';
 import * as vec2 from '@2gis/gl-matrix/vec2';
 import { Grid, pointsToGrid } from './points';
-import { degToRad, projectGeoToMap } from './utils';
+import { degToRad, projectGeoToMap, clamp, lerp } from './utils';
 
 const tempMatrix = new Float32Array(mat4.create());
 const compileShader = WebGLRenderingContext.prototype.compileShader;
@@ -110,6 +110,8 @@ const fragmentShaderSource = `
     }
 `;
 
+const adaptivePalleteDuration = 300;
+
 export interface HeatOptions {
     size: number;
     height: number;
@@ -126,6 +128,27 @@ export interface HeatOptions {
     gridMaxPercentile: number;
     adaptiveViewportPallete: boolean;
 }
+
+interface Animation {
+    startTime: number;
+    endTime: number;
+    from: number;
+    to: number;
+    value: number;
+}
+const startAnimation = (anim: Animation, value: number, duration: number) => {
+    anim.from = anim.value;
+    anim.to = value;
+    anim.startTime = Date.now();
+    anim.endTime = anim.startTime + duration;
+};
+const updateAnimation = (anim: Animation) => {
+    const now = Date.now();
+    const prevValue = anim.value;
+    const t = clamp((now - anim.startTime) / (anim.endTime - anim.startTime), 0, 1);
+    anim.value = lerp(anim.from, anim.to, t);
+    return prevValue !== anim.value;
+};
 
 export class Heat {
     private options: HeatOptions = {
@@ -155,8 +178,9 @@ export class Heat {
     private vao?: Vao;
     private vertexCount: number;
     private lightDirection: number[];
-    private minValue: number;
-    private maxValue: number;
+    private minValue: Animation;
+    private maxValue: Animation;
+    private needRerender: boolean;
 
     constructor(private map: any, container: HTMLElement, options?: HeatOptions) {
         if (options) {
@@ -167,8 +191,8 @@ export class Heat {
             -Math.sin(degToRad(this.options.lightAngle)),
             -Math.cos(degToRad(this.options.lightAngle)),
         ];
-        this.minValue = 0;
-        this.maxValue = 0;
+        this.minValue = { startTime: 0, endTime: 0, value: 0, from: 0, to: 0 };
+        this.maxValue = { startTime: 0, endTime: 0, value: 0, from: 0, to: 0 };
 
         this.canvas = document.createElement('canvas');
         this.canvas.style.position = 'absolute';
@@ -230,6 +254,10 @@ export class Heat {
                 });
             }
         });
+
+        this.map.on('move', () => {
+            this.needRerender = true;
+        });
     }
 
     public setOptions(options: HeatOptions) {
@@ -254,6 +282,8 @@ export class Heat {
         } else if (needNewMinMax) {
             this.findViewportMinMaxTemp();
         }
+
+        this.needRerender = true;
     }
 
     public setData(points: number[][]) {
@@ -392,6 +422,8 @@ export class Heat {
             a_normal: normalBuffer,
             a_value: valueBuffer,
         });
+
+        this.needRerender = true;
     }
 
     private updateSize = () => {
@@ -402,12 +434,21 @@ export class Heat {
         this.canvas.style.height = size[1] * window.devicePixelRatio + 'px';
 
         this.gl.viewport(0, 0, size[0], size[1]);
+
+        this.needRerender = true;
     };
 
     private update = () => {
         requestAnimationFrame(this.update);
 
         if (!this.vao) {
+            return;
+        }
+
+        const changeMinValue = updateAnimation(this.minValue);
+        const changeMaxValue = updateAnimation(this.maxValue);
+
+        if (!this.needRerender && !changeMinValue && !changeMaxValue) {
             return;
         }
 
@@ -426,7 +467,7 @@ export class Heat {
             u_sla: [this.options.saturation, this.options.light, this.options.opacity],
             u_light_direction: this.lightDirection,
             u_light_influence: this.options.lightInfluence,
-            u_value_range: [this.minValue, this.maxValue],
+            u_value_range: [this.minValue.value, this.maxValue.value],
         });
 
         this.vao.bind({
@@ -480,33 +521,30 @@ export class Heat {
 
         temps.sort((a, b) => a - b);
 
-        this.minValue = temps[Math.floor(temps.length * this.options.gridMinPercentile)];
-        this.maxValue =
+        startAnimation(
+            this.minValue,
+            temps[Math.floor(temps.length * this.options.gridMinPercentile)],
+            adaptivePalleteDuration,
+        );
+        startAnimation(
+            this.maxValue,
             temps[
                 Math.min(
                     Math.floor(temps.length * this.options.gridMaxPercentile),
                     temps.length - 1,
                 )
-            ];
+            ],
+            adaptivePalleteDuration,
+        );
     }
 }
 
-function createGrid(
-    geoPoints: number[][],
-    gridStepSize: number,
-    // minPercentile: number,
-    // maxPercentile: number,
-): Grid {
+function createGrid(geoPoints: number[][], gridStepSize: number): Grid {
     const points = geoPoints.map((point) => {
         const lngLat = [point[0], point[1]];
         const mapPoint = projectGeoToMap(lngLat);
         return [mapPoint[0], mapPoint[1], point[2]];
     });
-
-    // points.forEach((point) => {
-    //     point[2] = Math.max(Math.min(point[2], maxTemp), minTemp);
-    //     point[2] = (point[2] - minTemp) / (maxTemp - minTemp);
-    // });
 
     return pointsToGrid(points, { stepX: gridStepSize, stepY: gridStepSize });
 }
