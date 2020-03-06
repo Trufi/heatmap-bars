@@ -434,12 +434,18 @@ export class Heat {
 
     private updateSize = () => {
         const size = this.map.getSize();
-        this.canvas.width = size[0];
-        this.canvas.height = size[1];
-        this.canvas.style.width = size[0] * window.devicePixelRatio + 'px';
-        this.canvas.style.height = size[1] * window.devicePixelRatio + 'px';
 
-        this.gl.viewport(0, 0, size[0], size[1]);
+        this.canvas.width = size[0] * window.devicePixelRatio;
+        this.canvas.height = size[1] * window.devicePixelRatio;
+        this.canvas.style.width = size[0] + 'px';
+        this.canvas.style.height = size[1] + 'px';
+
+        this.gl.viewport(
+            0,
+            0,
+            size[0] * window.devicePixelRatio,
+            size[1] * window.devicePixelRatio,
+        );
 
         this.needRerender = true;
     };
