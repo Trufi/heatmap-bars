@@ -147,6 +147,7 @@ formFolder.add(heatOptions, 'height', 0, 1000000, 1).onChange(update);
 formFolder.add(heatOptions, 'faces', 2, 20, 1).onChange(update);
 
 const colorFolder = gui.addFolder('Color');
+colorFolder.add(heatOptions, 'opacity', 0, 1, 0.01).onChange(update);
 colorFolder.add(heatOptions, 'hueOfMinValue', 0, 360, 1).onChange(update);
 colorFolder.add(heatOptions, 'saturationOfMinValue', 0, 1, 0.01).onChange(update);
 colorFolder.add(heatOptions, 'lightOfMinValue', 0, 1, 0.01).onChange(update);
