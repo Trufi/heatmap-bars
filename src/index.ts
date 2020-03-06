@@ -50,7 +50,7 @@ const heatOptions: HeatOptions = { ...defaultHeatOptions };
 heatmap.setOptions(heatOptions);
 
 const defaultfilterConfig = {
-    radius: 10000,
+    radius: 16000,
 };
 const filterConfig = { ...defaultfilterConfig };
 
