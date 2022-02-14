@@ -1,8 +1,8 @@
 {
     "compilerOptions": {
         "target": "es6",
-        "types": ["@2gis/mapgl/global", "@2gis/gl-matrix", "2gl"],
-        "module": "es2015",
+        "types": ["2gl"],
+        "module": "ES2020",
         "moduleResolution": "node",
         "lib": ["dom", "es6"],
         "sourceMap": true,
@@ -11,6 +11,9 @@
         "importHelpers": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
-        "importsNotUsedAsValues": "preserve"
-    }
+        "importsNotUsedAsValues": "preserve",
+        "declaration": true,
+        "outDir": "dist/module"
+    },
+    "include": ["src/**/*"]
 }

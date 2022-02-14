@@ -26,11 +26,11 @@ module.exports = (env) => {
             extensions: ['.ts', '.js'],
         },
 
-        entry: './src/index.ts',
+        entry: './demo/index.ts',
 
         output: {
             filename: 'index.js',
-            path: path.resolve(__dirname, 'dist'),
+            path: path.resolve(__dirname, 'demo/dist'),
             publicPath: '/dist',
         },
 
@@ -44,6 +44,9 @@ module.exports = (env) => {
             allowedHosts: 'all',
             client: {
                 overlay: false,
+            },
+            static: {
+                directory: path.join(__dirname, 'demo/public'),
             },
         },
     };

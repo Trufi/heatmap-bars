@@ -2,7 +2,8 @@
     "name": "@trufi/heatmap",
     "version": "0.0.1",
     "description": "Heatmap bars for 2GIS MapGL API",
-    "main": "dist/index.js",
+    "main": "dist/cjs/index.js",
+    "module": "dist/module/index.js",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/Trufi/heatmap.git"
@@ -15,7 +16,10 @@
     "license": "MIT",
     "scripts": {
         "start": "npm run dev",
-        "build": "webpack --env=production",
+        "build": "shx rm -rf dist && npm run build:module && npm run build:cjs",
+        "build:module": "tsc",
+        "build:cjs": "tsc -p tsconfig.cjs.json",
+        "builddemo": "shx rm -rf demo/dist && webpack --env=production",
         "dev": "webpack serve",
         "prettier": "prettier --check \"./**/*.{ts,tsx,js,json,html,css}\"",
         "test": "npm run prettier && npm run build"

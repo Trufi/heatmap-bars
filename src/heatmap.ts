@@ -1,12 +1,12 @@
+/// <reference types="@2gis/mapgl/global" />
+
 import Buffer from '2gl/Buffer';
 import BufferChannel from '2gl/BufferChannel';
 import Shader from '2gl/Shader';
 import ShaderProgram from '2gl/ShaderProgram';
 import Vao from '2gl/Vao';
 import {
-    clamp,
     degToRad,
-    lerp,
     mapPointFromLngLat,
     mat4create,
     mat4fromTranslationScale,
@@ -19,93 +19,15 @@ import {
     vec2normalize,
     vec2sub,
 } from '@trufi/utils';
+import { Animation, startAnimation, updateAnimation } from './animation';
 import { Grid, pointsToGrid } from './points';
+import { fragmentShaderSource, vertexShaderSource } from './shaders';
 
 const tempMatrix = new Float32Array(mat4create());
 
-const vertexShaderSource = `
-    attribute vec3 a_position;
-    attribute vec2 a_offset;
-    attribute vec2 a_normal;
-    attribute float a_value;
-
-    uniform vec2 u_value_range;
-
-    uniform mat4 u_model;
-    uniform float u_height;
-    uniform float u_size;
-
-    uniform vec2 u_hue_range;
-    uniform vec2 u_saturation_range;
-    uniform vec2 u_light_range;
-    uniform float u_alpha;
-
-    uniform vec2 u_light_direction;
-    uniform float u_light_influence;
-
-    varying vec4 v_color;
-
-    float hueToRgb(float p, float q, float t) {
-        if (t < 0.0) t += 1.0;
-        if (t > 1.0) t -= 1.0;
-        if (t < 0.166666) return p + (q - p) * 6.0 * t;
-        if (t < 0.5) return q;
-        if (t < 0.666666) return p + (q - p) * (0.666666 - t) * 6.0;
-
-        return p;
-    }
-
-    vec3 hslToRgb(float h, float s, float l) {
-        // Achromatic
-        if (s == 0.0) return vec3(l, l, l);
-        h /= 360.0;
-
-        float q = l < 0.5 ? l * (1.0 + s) : l + s - l * s;
-        float p = 2.0 * l - q;
-
-        return vec3(
-            hueToRgb(p, q, h + 0.333333),
-            hueToRgb(p, q, h),
-            hueToRgb(p, q, h - 0.333333)
-        );
-    }
-
-    void main(void) {
-        float value = max(min(a_value, u_value_range.y), u_value_range.x);
-        value = (value - u_value_range.x) / (u_value_range.y - u_value_range.x);
-
-        float light_weight = 1.0 + u_light_influence * (abs(dot(u_light_direction, a_normal)) - 1.0);
-        if (a_normal.x == 0.0 && a_normal.y == 0.0) {
-            light_weight = 1.0;
-        }
-
-        float hue = mix(u_hue_range.x, u_hue_range.y, value);
-        float saturation = mix(u_saturation_range.x, u_saturation_range.y, value);
-        float light = mix(u_light_range.x, u_light_range.y, value);
-        vec3 rgb = hslToRgb(hue, saturation, light);
-        v_color = vec4(rgb * light_weight, u_alpha);
-
-        gl_Position = u_model * vec4(
-            vec2(a_position.xy + a_offset * u_size),
-            a_position.z * u_height * value,
-            1.0
-        );
-    }
-`;
-
-const fragmentShaderSource = `
-    precision mediump float;
-
-    varying vec4 v_color;
-
-    void main(void) {
-        gl_FragColor = v_color;
-    }
-`;
-
 const adaptivePalleteDuration = 300;
 
-export interface HeatOptions {
+export interface HeatmapOptions {
     size: number;
     height: number;
     faces: number;
@@ -124,29 +46,8 @@ export interface HeatOptions {
     adaptiveViewportPallete: boolean;
 }
 
-interface Animation {
-    startTime: number;
-    endTime: number;
-    from: number;
-    to: number;
-    value: number;
-}
-const startAnimation = (anim: Animation, value: number, duration: number) => {
-    anim.from = anim.value;
-    anim.to = value;
-    anim.startTime = Date.now();
-    anim.endTime = anim.startTime + duration;
-};
-const updateAnimation = (anim: Animation) => {
-    const now = Date.now();
-    const prevValue = anim.value;
-    const t = clamp((now - anim.startTime) / (anim.endTime - anim.startTime), 0, 1);
-    anim.value = lerp(anim.from, anim.to, t);
-    return prevValue !== anim.value;
-};
-
-export class Heat {
-    private options: HeatOptions = {
+export class Heatmap {
+    private options: HeatmapOptions = {
         size: 1.4,
         height: 500000,
         faces: 4,
@@ -179,7 +80,7 @@ export class Heat {
     private maxValue: Animation;
     private needRerender: boolean;
 
-    constructor(private map: mapgl.Map, container: HTMLElement, options?: HeatOptions) {
+    constructor(private map: mapgl.Map, container: HTMLElement, options?: HeatmapOptions) {
         if (options) {
             this.setOptions(options);
         }
@@ -259,7 +160,7 @@ export class Heat {
         });
     }
 
-    public setOptions(options: HeatOptions) {
+    public setOptions(options: HeatmapOptions) {
         const needNewBuffer =
             options.faces !== this.options.faces ||
             options.gridStepSize !== this.options.gridStepSize;
