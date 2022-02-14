@@ -1,4 +1,4 @@
-# 3D Heatmap
+# Heatmap bars for 2GIS MapGL API
 
 Demo links:
 

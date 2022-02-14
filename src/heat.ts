@@ -1,33 +1,27 @@
-import ShaderProgram from '2gl/ShaderProgram';
+import Buffer from '2gl/Buffer';
 import BufferChannel from '2gl/BufferChannel';
 import Shader from '2gl/Shader';
-import Buffer from '2gl/Buffer';
+import ShaderProgram from '2gl/ShaderProgram';
 import Vao from '2gl/Vao';
-
-import * as mat4 from '@2gis/gl-matrix/mat4';
-import * as vec2 from '@2gis/gl-matrix/vec2';
+import {
+    clamp,
+    degToRad,
+    lerp,
+    mapPointFromLngLat,
+    mat4create,
+    mat4fromTranslationScale,
+    mat4mul,
+    vec2add,
+    vec2floor,
+    vec2max,
+    vec2min,
+    vec2mul,
+    vec2normalize,
+    vec2sub,
+} from '@trufi/utils';
 import { Grid, pointsToGrid } from './points';
-import { degToRad, projectGeoToMap, clamp, lerp } from './utils';
 
-const tempMatrix = new Float32Array(mat4.create());
-const compileShader = WebGLRenderingContext.prototype.compileShader;
-
-WebGLRenderingContext.prototype.compileShader = function(shader) {
-    compileShader.call(this, shader);
-
-    if (!this.getShaderParameter(shader, this.COMPILE_STATUS)) {
-        console.log(this.getShaderInfoLog(shader));
-    }
-};
-
-const linkProgram = WebGLRenderingContext.prototype.linkProgram;
-WebGLRenderingContext.prototype.linkProgram = function(program) {
-    linkProgram.call(this, program);
-
-    if (!this.getProgramParameter(program, this.LINK_STATUS)) {
-        console.error(this.getProgramInfoLog(program));
-    }
-};
+const tempMatrix = new Float32Array(mat4create());
 
 const vertexShaderSource = `
     attribute vec3 a_position;
@@ -173,7 +167,7 @@ export class Heat {
     private canvas: HTMLCanvasElement;
     private gl: WebGLRenderingContext;
     private ext: { OES_vertex_array_object: OES_vertex_array_object };
-    private matrix: TypedArray;
+    private matrix = mat4create();
     private program: ShaderProgram;
     private points?: number[][];
     private grid?: Grid;
@@ -185,7 +179,7 @@ export class Heat {
     private maxValue: Animation;
     private needRerender: boolean;
 
-    constructor(private map: any, container: HTMLElement, options?: HeatOptions) {
+    constructor(private map: mapgl.Map, container: HTMLElement, options?: HeatOptions) {
         if (options) {
             this.setOptions(options);
         }
@@ -226,7 +220,6 @@ export class Heat {
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ZERO);
 
-        this.matrix = mat4.create();
         this.vertexCount = 0;
         this.program = new ShaderProgram({
             vertex: new Shader('vertex', vertexShaderSource),
@@ -255,7 +248,7 @@ export class Heat {
 
         this.map.on('moveend', () => {
             if (this.options.adaptiveViewportPallete) {
-                (window as any).requestIdleCallback(() => {
+                window.requestIdleCallback(() => {
                     this.findViewportMinMaxTemp();
                 });
             }
@@ -305,7 +298,7 @@ export class Heat {
         const grid = (this.grid = createGrid(points, this.options.gridStepSize));
         this.findViewportMinMaxTemp();
 
-        mat4.fromTranslationScale(
+        mat4fromTranslationScale(
             this.matrix,
             [grid.minX, grid.minY, 0],
             [grid.stepX, grid.stepY, 1],
@@ -363,8 +356,8 @@ export class Heat {
                     const offsetLeft = offsets[i - 1];
                     const offsetRight = offsets[i];
 
-                    vec2.add(wallNormal, offsetLeft, offsetRight);
-                    vec2.normalize(wallNormal, wallNormal);
+                    vec2add(wallNormal, offsetLeft, offsetRight);
+                    vec2normalize(wallNormal, wallNormal);
 
                     // roof
                     vertex(x, y, 1, zeroOffset, roofNormal, value);
@@ -467,7 +460,7 @@ export class Heat {
         const gl = this.gl;
 
         const mapMatrix = this.map.getProjectionMatrix();
-        mat4.mul(tempMatrix, mapMatrix, this.matrix);
+        mat4mul(tempMatrix as any as number[], mapMatrix, this.matrix);
 
         this.program.enable(gl);
 
@@ -505,25 +498,24 @@ export class Heat {
 
         if (this.options.adaptiveViewportPallete) {
             const bounds = this.map.getBounds();
-            const northEast = projectGeoToMap(bounds.northEast);
-            const southWest = projectGeoToMap(bounds.southWest);
+            const northEast = mapPointFromLngLat(bounds.northEast);
+            const southWest = mapPointFromLngLat(bounds.southWest);
 
-            vec2.min(min, northEast, southWest);
+            vec2min(min, northEast, southWest);
+            vec2max(max, northEast, southWest);
 
-            vec2.max(max, northEast, southWest);
-
-            vec2.sub(min, min, [grid.minX, grid.minY]);
-            vec2.sub(max, max, [grid.minX, grid.minY]);
+            vec2sub(min, min, [grid.minX, grid.minY]);
+            vec2sub(max, max, [grid.minX, grid.minY]);
 
             const scaler = [1 / grid.stepX, 1 / grid.stepY];
-            vec2.mul(min, min, scaler);
-            vec2.mul(max, max, scaler);
+            vec2mul(min, min, scaler);
+            vec2mul(max, max, scaler);
 
-            vec2.floor(min, min);
-            vec2.max(min, min, [0, 0]);
+            vec2floor(min, min);
+            vec2max(min, min, [0, 0]);
 
-            vec2.floor(max, max);
-            vec2.min(max, max, [grid.width, grid.height]);
+            vec2floor(max, max);
+            vec2min(max, max, [grid.width, grid.height]);
         }
 
         const temps: number[] = [];
@@ -559,7 +551,7 @@ export class Heat {
 function createGrid(geoPoints: number[][], gridStepSize: number): Grid {
     const points = geoPoints.map((point) => {
         const lngLat = [point[0], point[1]];
-        const mapPoint = projectGeoToMap(lngLat);
+        const mapPoint = mapPointFromLngLat(lngLat);
         return [mapPoint[0], mapPoint[1], point[2]];
     });
 

@@ -1,8 +1,8 @@
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const path = require('path');
 
-module.exports = (_, args) => {
-    const mode = args.production ? 'production' : 'development';
+module.exports = (env) => {
+    const mode = env.production ? 'production' : 'development';
 
     return {
         mode,
@@ -34,21 +34,17 @@ module.exports = (_, args) => {
             publicPath: '/dist',
         },
 
-        plugins: [
-            new ForkTsCheckerWebpackPlugin({
-                watch: ['./src'],
-            }),
-        ],
+        plugins: [new ForkTsCheckerWebpackPlugin()],
 
         devtool: mode === 'production' ? false : 'source-map',
 
         devServer: {
             host: '0.0.0.0',
             port: 3000,
-            stats: {
-                modules: false,
+            allowedHosts: 'all',
+            client: {
+                overlay: false,
             },
-            disableHostCheck: true,
         },
     };
 };

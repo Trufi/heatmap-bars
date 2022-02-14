@@ -1,8 +1,6 @@
 import * as dat from 'dat.gui';
+import { geoDistance, throttle, coordinatesPrecision } from '@trufi/utils';
 import { Heat, HeatOptions } from './heat';
-import { geoDistance, coordinatesPrecision, throttle, parseQuery } from './utils';
-
-declare const mapgl: any;
 
 const container = document.getElementById('map') as HTMLElement;
 
@@ -19,7 +17,7 @@ const map = ((window as any).map = new mapgl.Map(container, {
     zoomControl: false,
 }));
 
-const pointsPromise = fetch('./assets/data.csv')
+const pointsPromise = fetch('./data.csv')
     .then((res) => res.text())
     .then((res) => {
         const rows = res.split('\n').slice(1);
@@ -172,3 +170,15 @@ gridFolder.add(filterConfig, 'radius', 1, 50000, 1).onChange(
 );
 
 gui.add(heatOptions, 'adaptiveViewportPallete').onChange(update);
+
+function parseQuery() {
+    const res: { [key: string]: number } = {};
+    location.search
+        .slice(1)
+        .split('&')
+        .map((str) => str.split('='))
+        .forEach((couple) => {
+            res[couple[0]] = Number(couple[1]);
+        });
+    return res;
+}
