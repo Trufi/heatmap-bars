@@ -19,7 +19,7 @@ jobs:
       - name: Build 🏗️
         run: |
           npm ci
-          npm run build
+          npm run builddemo
           cp -r dist public
 
       - name: Deploy 🚀
