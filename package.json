@@ -22,7 +22,8 @@
         "builddemo": "shx rm -rf demo/dist && webpack --env=production",
         "dev": "webpack serve",
         "prettier": "prettier --check \"./**/*.{ts,tsx,js,json,html,css}\"",
-        "test": "npm run prettier && npm run build"
+        "test": "npm run prettier && npm run build",
+        "prepublishOnly": "shx rm -rf dist && npm run build"
     },
     "dependencies": {
         "2gl": "0.9.0",
