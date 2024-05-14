@@ -109,10 +109,18 @@ const updateUrl = throttle(() => {
 
 function restoreFromUrl() {
     const query = parseQuery();
-    map.setCenter([query.lng, query.lat], { animate: false });
-    map.setZoom(query.zoom, { animate: false });
-    map.setRotation(query.rotation, { animate: false });
-    map.setPitch(query.pitch, { animate: false });
+    if (query.lng !== undefined && query.lat !== undefined) {
+        map.setCenter([query.lng, query.lat], { animate: false });
+    }
+    if (query.zoom !== undefined) {
+        map.setZoom(query.zoom, { animate: false });
+    }
+    if (query.rotation !== undefined) {
+        map.setRotation(query.rotation, { animate: false });
+    }
+    if (query.pitch !== undefined) {
+        map.setPitch(query.pitch, { animate: false });
+    }
     for (const key in heatOptions) {
         if (query[key] !== undefined && !Number.isNaN(query[key])) {
             if (key === 'adaptiveViewportPallete') {
